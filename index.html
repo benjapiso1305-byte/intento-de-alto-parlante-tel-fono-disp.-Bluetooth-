@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Monitor de Audio BT</title>
+    <style>
+        /* Paleta de Colores: Naranja y Gris */
+        :root {
+            --bg-color: #f5f5f5;
+            --surface-color: #ffffff;
+            --text-color: #222222;
+            --border-color: #dddddd;
+            --gray-neutral: #555555;
+            --gray-light: #999999;
+            --accent-color: #ff7b00; /* Naranja Principal */
+            --accent-hover: #e66e00;
+        }
+
+        /* Configuración Tema Oscuro */
+        body.dark-theme {
+            --bg-color: #121212;
+            --surface-color: #1e1e1e;
+            --text-color: #e0e0e0;
+            --border-color: #333333;
+            --gray-neutral: #aaaaaa;
+            --gray-light: #555555;
+        }
+
+        * { 
+            box-sizing: border-box; 
+            transition: background-color 0.2s, color 0.2s, border-color 0.2s, opacity 0.2s; 
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            background-color: var(--surface-color);
+            padding: 24px;
+            border-radius: 16px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+            width: 100%;
+            max-width: 400px;
+            border: 1px solid var(--border-color);
+        }
+
+        .header { 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+            margin-bottom: 24px; 
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 12px;
+        }
+        
+        h1 { margin: 0; font-size: 1.2rem; font-weight: 600; }
+        
+        .theme-btn {
+            background: none;
+            border: 1px solid var(--border-color);
+            color: var(--text-color);
+            font-size: 1.1rem;
+            padding: 6px 12px;
+            border-radius: 20px;
+            cursor: pointer;
+            background-color: var(--bg-color);
+        }
+
+        .theme-btn:hover {
+            background-color: var(--accent-color);
+            color: #ffffff;
+            border-color: var(--accent-color);
+        }
+
+        .control-group { margin-bottom: 18px; }
+        label { display: block; font-size: 0.85rem; margin-bottom: 6px; color: var(--gray-neutral); font-weight: 500; }
+        
+        select, input[type="range"] {
+            width: 100%;
+            padding: 12px;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            outline: none;
+            font-size: 0.95rem;
+        }
+
+        input[type="range"] { padding: 0; accent-color: var(--accent-color); height: 8px; }
+
+        .buttons-layout { display: flex; flex-direction: column; gap: 12px; margin-top: 24px; }
+        .row-btns { display: flex; gap: 12px; }
+        
+        button.action-btn {
+            flex: 1;
+            padding: 16px;
+            border: none;
+            border-radius: 10px;
+            font-weight: bold;
+            font-size: 1rem;
+            cursor: pointer;
+            color: #ffffff;
+            user-select: none;
+            -webkit-user-select: none;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        /* ESTADO: Botón de Inicialización (Paso 1) */
+        .btn-init { 
+            background-color: var(--accent-color); 
+        }
+        .btn-init:hover:not(:disabled) { 
+            background-color: var(--accent-hover);
+        }
+
+        /* ESTADO: Disponible pero Apagado (Gris Carbón / Neutro) */
+        .btn-toggle { 
+            background-color: #444444;
+        }
+        .btn-toggle:hover:not(:disabled) {
+            background-color: #555555;
+        }
+
+        .btn-ptt { 
+            background-color: #222222;
+        }
+        .btn-ptt:hover:not(:disabled) {
+            background-color: #333333;
+        }
+
+        /* ESTADO: EN FUNCIONAMIENTO / TRANSMITIENDO (Naranja Activo) */
+        button.action-btn.active_on { 
+            background-color: var(--accent-color) !important;
+            color: #ffffff !important;
+            box-shadow: 0 0 12px var(--accent-color);
+            animation: pulse-active 1.5s infinite ease-in-out;
+        }
+
+        @keyframes pulse-active {
+            0% { opacity: 1; }
+            50% { opacity: 0.85; }
+            100% { opacity: 1; }
+        }
+
+        /* ESTADO CRÍTICO: Completamente Deshabilitado (Antes del Paso 1) */
+        button.action-btn:disabled, select:disabled, input[type="range"]:disabled {
+            background-color: #e0e0e0 !important;
+            color: #999999 !important;
+            cursor: not-allowed;
+            opacity: 0.6;
+        }
+
+        body.dark-theme button.action-btn:disabled,
+        body.dark-theme select:disabled,
+        body.dark-theme input[type="range"]:disabled {
+            background-color: #333333 !important;
+            color: #666666 !important;
+        }
+
+        .status-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background-color: #999999;
+            margin-right: 8px;
+            animation: none;
+        }
+
+        .status-indicator.connected {
+            background-color: #4caf50;
+            animation: pulse 2s infinite;
+        }
+
+        .status-indicator.transmitting {
+            background-color: var(--accent-color);
+            animation: pulse 0.8s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .info-text {
+            font-size: 0.8rem;
+            color: var(--gray-light);
+            margin-top: 12px;
+            padding: 12px;
+            background-color: var(--bg-color);
+            border-radius: 8px;
+            border-left: 3px solid var(--accent-color);
+        }
+
+        .level-display {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 8px;
+        }
+
+        .level-bars {
+            display: flex;
+            gap: 4px;
+        }
+
+        .level-bar {
+            width: 4px;
+            height: 20px;
+            background-color: var(--border-color);
+            border-radius: 2px;
+        }
+
+        .level-bar.active {
+            background-color: var(--accent-color);
+        }
+
+        .level-value {
+            font-size: 0.85rem;
+            font-weight: bold;
+            color: var(--accent-color);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔊 Monitor Audio BT</h1>
+            <button class="theme-btn" id="themeToggle" title="Cambiar tema">🌙</button>
+        </div>
+
+        <!-- PASO 1: Inicialización -->
+        <div class="control-group">
+            <label for="initBtn">Estado de Conexión</label>
+            <button id="initBtn" class="action-btn btn-init">Inicializar Dispositivo</button>
+        </div>
+
+        <!-- PASO 2: Seleccionar Dispositivo (Deshabilitado hasta inicializar) -->
+        <div class="control-group">
+            <label for="deviceSelect">Dispositivo Bluetooth</label>
+            <select id="deviceSelect" disabled>
+                <option value="">Selecciona un dispositivo...</option>
+                <option value="device1">🎧 Auriculares XYZ</option>
+                <option value="device2">📱 Teléfono Samsung</option>
+                <option value="device3">💻 Laptop Lenovo</option>
+            </select>
+        </div>
+
+        <!-- PASO 3: Controles de Volumen y Ecualizador -->
+        <div class="control-group">
+            <label for="volumeSlider">Volumen <span id="volumeValue">50</span>%</label>
+            <input type="range" id="volumeSlider" min="0" max="100" value="50" disabled>
+            <div class="level-display">
+                <div class="level-bars" id="volumeBars">
+                    <div class="level-bar"></div>
+                    <div class="level-bar"></div>
+                    <div class="level-bar"></div>
+                    <div class="level-bar"></div>
+                    <div class="level-bar"></div>
+                </div>
+                <span class="level-value" id="dbValue">-6dB</span>
+            </div>
+        </div>
+
+        <div class="control-group">
+            <label for="eqSelect">Ecualizador</label>
+            <select id="eqSelect" disabled>
+                <option value="normal">Normal</option>
+                <option value="bass">Graves Mejorados</option>
+                <option value="treble">Agudos Mejorados</option>
+                <option value="balanced">Balanceado</option>
+            </select>
+        </div>
+
+        <!-- PASO 4: Controles PTT y Toggle -->
+        <div class="buttons-layout">
+            <div class="row-btns">
+                <button id="toggleBtn" class="action-btn btn-toggle" disabled>Encender/Apagar</button>
+                <button id="pttBtn" class="action-btn btn-ptt" disabled>PTT (Presiona)</button>
+            </div>
+        </div>
+
+        <!-- Indicador de Estado -->
+        <div class="info-text">
+            <span class="status-indicator" id="statusIndicator"></span>
+            <span id="statusText">Esperando inicialización...</span>
+        </div>
+    </div>
+
+    <script>
+        // Estado de la aplicación
+        const appState = {
+            initialized: false,
+            connected: false,
+            transmitting: false,
+            volume: 50,
+            eq: 'normal',
+            device: null,
+            darkMode: localStorage.getItem('darkMode') === 'true'
+        };
+
+        // Referencias a elementos del DOM
+        const elements = {
+            themeToggle: document.getElementById('themeToggle'),
+            initBtn: document.getElementById('initBtn'),
+            deviceSelect: document.getElementById('deviceSelect'),
+            volumeSlider: document.getElementById('volumeSlider'),
+            volumeValue: document.getElementById('volumeValue'),
+            dbValue: document.getElementById('dbValue'),
+            eqSelect: document.getElementById('eqSelect'),
+            toggleBtn: document.getElementById('toggleBtn'),
+            pttBtn: document.getElementById('pttBtn'),
+            statusIndicator: document.getElementById('statusIndicator'),
+            statusText: document.getElementById('statusText'),
+            volumeBars: document.getElementById('volumeBars')
+        };
+
+        // Inicializar tema
+        function initTheme() {
+            if (appState.darkMode) {
+                document.body.classList.add('dark-theme');
+                elements.themeToggle.textContent = '☀️';
+            } else {
+                document.body.classList.remove('dark-theme');
+                elements.themeToggle.textContent = '🌙';
+            }
+        }
+
+        // Toggle tema
+        elements.themeToggle.addEventListener('click', () => {
+            appState.darkMode = !appState.darkMode;
+            localStorage.setItem('darkMode', appState.darkMode);
+            initTheme();
+        });
+
+        // Paso 1: Inicializar dispositivo
+        elements.initBtn.addEventListener('click', () => {
+            appState.initialized = !appState.initialized;
+            
+            if (appState.initialized) {
+                elements.initBtn.textContent = '✓ Inicializado';
+                elements.initBtn.classList.add('active_on');
+                elements.deviceSelect.disabled = false;
+                updateStatus('Inicializado. Selecciona un dispositivo.', 'ready');
+            } else {
+                elements.initBtn.textContent = 'Inicializar Dispositivo';
+                elements.initBtn.classList.remove('active_on');
+                elements.deviceSelect.disabled = true;
+                elements.volumeSlider.disabled = true;
+                elements.eqSelect.disabled = true;
+                elements.toggleBtn.disabled = true;
+                elements.pttBtn.disabled = true;
+                appState.connected = false;
+                appState.transmitting = false;
+                updateStatus('Esperando inicialización...', 'idle');
+            }
+        });
+
+        // Paso 2: Seleccionar dispositivo
+        elements.deviceSelect.addEventListener('change', (e) => {
+            appState.device = e.target.value;
+            
+            if (appState.device) {
+                appState.connected = true;
+                elements.volumeSlider.disabled = false;
+                elements.eqSelect.disabled = false;
+                elements.toggleBtn.disabled = false;
+                elements.pttBtn.disabled = false;
+                updateStatus(`Conectado a: ${e.target.options[e.target.selectedIndex].text}`, 'connected');
+            } else {
+                appState.connected = false;
+                elements.volumeSlider.disabled = true;
+                elements.eqSelect.disabled = true;
+                elements.toggleBtn.disabled = true;
+                elements.pttBtn.disabled = true;
+                updateStatus('Inicializado. Selecciona un dispositivo.', 'ready');
+            }
+        });
+
+        // Paso 3: Controlar volumen
+        elements.volumeSlider.addEventListener('input', (e) => {
+            appState.volume = parseInt(e.target.value);
+            elements.volumeValue.textContent = appState.volume;
+            
+            // Actualizar visualización de barras
+            const numBars = Math.ceil((appState.volume / 100) * 5);
+            Array.from(elements.volumeBars.children).forEach((bar, index) => {
+                if (index < numBars) {
+                    bar.classList.add('active');
+                } else {
+                    bar.classList.remove('active');
+                }
+            });
+            
+            // Actualizar valor en dB (rango -20dB a 0dB)
+            const db = -20 + (appState.volume / 100) * 20;
+            elements.dbValue.textContent = `${db.toFixed(1)}dB`;
+        });
+
+        // Ecualizador
+        elements.eqSelect.addEventListener('change', (e) => {
+            appState.eq = e.target.value;
+            updateStatus(`Ecualizador: ${e.target.options[e.target.selectedIndex].text}`, 'info');
+        });
+
+        // Paso 4: Toggle Encender/Apagar
+        elements.toggleBtn.addEventListener('click', () => {
+            if (!appState.connected) return;
+            
+            appState.transmitting = !appState.transmitting;
+            
+            if (appState.transmitting) {
+                elements.toggleBtn.classList.add('active_on');
+                elements.toggleBtn.textContent = '✓ ACTIVO';
+                updateStatus('Audio en transmisión...', 'transmitting');
+            } else {
+                elements.toggleBtn.classList.remove('active_on');
+                elements.toggleBtn.textContent = 'Encender/Apagar';
+                updateStatus(`Conectado a: ${elements.deviceSelect.options[elements.deviceSelect.selectedIndex].text}`, 'connected');
+            }
+        });
+
+        // PTT (Push To Talk) - Simula transmisión mientras se presiona
+        elements.pttBtn.addEventListener('mousedown', () => {
+            if (!appState.connected) return;
+            appState.transmitting = true;
+            elements.pttBtn.classList.add('active_on');
+            elements.pttBtn.textContent = '🎤 TRANSMITIENDO';
+            updateStatus('Transmitiendo por PTT...', 'transmitting');
+        });
+
+        elements.pttBtn.addEventListener('mouseup', () => {
+            appState.transmitting = false;
+            elements.pttBtn.classList.remove('active_on');
+            elements.pttBtn.textContent = 'PTT (Presiona)';
+            updateStatus(`Conectado a: ${elements.deviceSelect.options[elements.deviceSelect.selectedIndex].text}`, 'connected');
+        });
+
+        elements.pttBtn.addEventListener('mouseleave', () => {
+            appState.transmitting = false;
+            elements.pttBtn.classList.remove('active_on');
+            elements.pttBtn.textContent = 'PTT (Presiona)';
+        });
+
+        // Soporte para touch (móviles)
+        elements.pttBtn.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            if (!appState.connected) return;
+            appState.transmitting = true;
+            elements.pttBtn.classList.add('active_on');
+            elements.pttBtn.textContent = '🎤 TRANSMITIENDO';
+            updateStatus('Transmitiendo por PTT...', 'transmitting');
+        });
+
+        elements.pttBtn.addEventListener('touchend', (e) => {
+            e.preventDefault();
+            appState.transmitting = false;
+            elements.pttBtn.classList.remove('active_on');
+            elements.pttBtn.textContent = 'PTT (Presiona)';
+            updateStatus(`Conectado a: ${elements.deviceSelect.options[elements.deviceSelect.selectedIndex].text}`, 'connected');
+        });
+
+        // Función para actualizar estado
+        function updateStatus(message, state) {
+            elements.statusText.textContent = message;
+            elements.statusIndicator.className = 'status-indicator';
+            
+            switch (state) {
+                case 'idle':
+                    elements.statusIndicator.classList.remove('connected', 'transmitting');
+                    break;
+                case 'ready':
+                case 'info':
+                    elements.statusIndicator.classList.add('connected');
+                    elements.statusIndicator.classList.remove('transmitting');
+                    break;
+                case 'connected':
+                    elements.statusIndicator.classList.add('connected');
+                    elements.statusIndicator.classList.remove('transmitting');
+                    break;
+                case 'transmitting':
+                    elements.statusIndicator.classList.add('transmitting');
+                    break;
+            }
+        }
+
+        // Inicializar
+        initTheme();
+        updateStatus('Esperando inicialización...', 'idle');
+    </script>
+</body>
+</html>
